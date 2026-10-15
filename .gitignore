@@ -1,0 +1,9 @@
+node_modules/
+*.log
+coverage-out/
+junit-out.xml
+
+# Vale's style packages, downloaded by `vale sync` - not `styles/`
+# wholesale, or this ignores styles/config/ (ours) along with them.
+styles/Google/
+styles/proselint/
