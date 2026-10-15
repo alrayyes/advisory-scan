@@ -1,0 +1,38 @@
+# Nobody picks a version. release-please reads the Conventional Commits that
+# land on main and keeps a release pull request open carrying the next
+# version and the changelog entry; merging that pull request tags the
+# release and writes the notes.
+#
+# RELEASE_TOKEN, not the default GITHUB_TOKEN: a release-please pull request
+# authored by github-actions[bot] sits at action_required with zero jobs run
+# on github.com/alrayyes repos (alrayyes/dotfiles#483).
+#
+# No build-provenance attestation: there is no build step. What a consumer
+# pins (`uses: alrayyes/advisory-scan@<sha>`) is the tagged source tree, which
+# the tag itself identifies.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # tags the release and writes it
+      pull-requests: write # keeps the release pull request up to date
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

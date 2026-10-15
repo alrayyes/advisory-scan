@@ -1,0 +1,38 @@
+{
+  "ltex": {
+    "language": "en-GB",
+    "dictionary": {
+      "en-GB": [
+        "advisory-scan",
+        "Forgejo",
+        "kcov",
+        "OpenSpec",
+        "commitlint",
+        "markdownlint",
+        "shellcheck",
+        "actionlint",
+        "lefthook",
+        "lockfile",
+        "lockfiles",
+        "govulncheck",
+        "jq",
+        "PKSA",
+        "PYSEC",
+        "RUSTSEC",
+        "GHSA",
+        "toolchain"
+      ]
+    },
+    "disabledRules": {
+      "en-GB": [
+        "PASSIVE_VOICE",
+        "UPPERCASE_SENTENCE_START",
+        "EN_COMPOUNDS_HAND_WRITTEN",
+        "PREPOSITION_VERB",
+        "A_INFINITIVE",
+        "UH_UH_COMMA",
+        "ID_CASING"
+      ]
+    }
+  }
+}

@@ -1,0 +1,66 @@
+# The same commands CI runs, so the two can't drift. The hook catches it
+# early; CI is the gate that can't be skipped.
+#
+# pre-commit judges only what the commit contains: every job takes
+# {staged_files} and makes no network fetch. actionlint can't take a file
+# list (it finds action.yml and the workflows itself), so it runs in
+# pre-push and CI only. Globs match ci.yml's `changes` job. OpenSpec's
+# generated files are the tool's, not prose this repo writes.
+
+output:
+  - failure
+
+pre-commit:
+  jobs:
+    - name: shellcheck
+      glob: "{scripts,tests}/**/*.{sh,bash,bats}"
+      run: shellcheck -x {staged_files}
+
+    - name: prettier
+      glob: "*.{md,yml,yaml}"
+      exclude:
+        - ".claude/**"
+        - "openspec/**"
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+
+    - name: markdownlint
+      glob: "*.md"
+      exclude:
+        - ".claude/**"
+        - "openspec/**"
+      run: bunx markdownlint-cli2 {staged_files}
+
+    - name: vale
+      glob: "*.md"
+      exclude:
+        - ".claude/**"
+        - "openspec/**"
+      run: ./scripts/lint-vale.sh {staged_files}
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: bunx commitlint --edit {1}
+
+# pre-push never writes: every job below runs in check mode.
+pre-push:
+  parallel: true
+  jobs:
+    - name: shellcheck
+      run: ./scripts/lint-shell.sh
+
+    - name: actionlint
+      run: actionlint
+
+    - name: prettier
+      run: bun run format:check
+
+    - name: markdownlint
+      run: bun run lint:md
+
+    - name: vale
+      run: ./scripts/lint-vale.sh
+
+    - name: ltex
+      run: ./scripts/lint-ltex.sh
