@@ -53,6 +53,9 @@ pre-push:
     - name: actionlint
       run: actionlint
 
+    - name: bats
+      run: bats tests/
+
     - name: prettier
       run: bun run format:check
 

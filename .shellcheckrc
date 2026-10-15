@@ -1,0 +1,3 @@
+# Resolve `source` directives relative to the file doing the sourcing.
+source-path=SCRIPTDIR
+external-sources=true

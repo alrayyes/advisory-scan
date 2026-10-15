@@ -1,0 +1,19 @@
+bun audit v1.4.3 (c6da4a4d3)
+
+braces@3.0.3
+  markdownlint-cli2 > micromatch > braces
+  high: braces vulnerable to stack-exhaustion denial of service through deeply nested patterns (<=3.0.3) - https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+
+smol-toml@1.7.0
+  markdownlint-cli2 > smol-toml
+  high: smol-toml: Denial of Service via malformed TOML documents (<=1.7.0) - https://github.com/advisories/GHSA-7w5x-hrqm-74c2
+  moderate: smol-toml: Quadratic-time parse() from parseKey rescanning to end of document on each key line (<=1.8.0) - https://github.com/advisories/GHSA-r4xh-jqrq-34v2
+
+braces@3.0.3
+  some-other-tool > braces
+  high: braces vulnerable to stack-exhaustion denial of service through deeply nested patterns (<=3.0.3) - https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+
+3 vulnerabilities (2 high, 1 moderate)
+
+  bun audit fix           upgrade the vulnerable packages within their ranges
+  bun audit fix --latest  also cross major versions

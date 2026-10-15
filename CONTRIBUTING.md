@@ -20,7 +20,7 @@ no roadmap beyond what the maintainer needs.
 files and makes no network fetch. Prettier writes only to staged files and
 restages them.
 
-`pre-push` runs the whole-tree checks in check mode: shellcheck, actionlint,
+`pre-push` runs the whole-tree checks in check mode: shellcheck, actionlint, bats,
 prettier, markdownlint, Vale and the grammar check. CI runs the same checks.
 
 ## Commits

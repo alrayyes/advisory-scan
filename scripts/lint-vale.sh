@@ -11,7 +11,7 @@
 set -eu
 
 VERSION=v3.17.1
-IMAGE="jdkato/vale:$VERSION"
+IMAGE="jdkato/vale:$VERSION@sha256:7dba3c9104ba366f172d119022c4ec53a005f7d14dc1b80e285421a3f0b71657"
 
 cd "$(dirname "$0")/.."
 

@@ -1,0 +1,30 @@
+# Forgejo Actions, bun. Copy into .forgejo/workflows/ and replace the
+# advisory-scan SHA with the commit of the release you want. Forgejo
+# fetches the action from github.com by its full URL.
+name: audit
+
+on:
+  pull_request:
+    paths: [package.json, bun.lock, .forgejo/workflows/audit.yml]
+
+concurrency:
+  group: audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: docker
+    timeout-minutes: 10
+    container:
+      image: oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373
+    steps:
+      # nodejs for actions/checkout: the image's `node` is bun's fallback
+      # wrapper, not Node, as in this account's other Forgejo workflows on
+      # oven/bun. bash and git for the action, which runs in bash and
+      # fetches the base commit; BusyBox covers the rest, timeout included.
+      - run: apk add --no-cache nodejs bash git
+      - uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://github.com/alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: gate
+          command: bun audit

@@ -1,0 +1,32 @@
+# GitHub Actions, Composer. Copy into .github/workflows/ and replace the
+# advisory-scan SHA with the commit of the release you want.
+name: audit
+
+on:
+  pull_request:
+    paths: [composer.json, composer.lock, .github/workflows/audit.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # --locked audits composer.lock without installing anything, so the base
+  # needs no setup either. --abandoned=report keeps an abandoned package
+  # (Composer fails on those by default since 2.7) from failing the gate.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          tools: composer:2.8.12
+      - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: gate
+          command: composer audit --locked --abandoned=report

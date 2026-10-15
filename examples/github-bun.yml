@@ -1,0 +1,30 @@
+# GitHub Actions, bun. Copy into .github/workflows/ and replace the
+# advisory-scan SHA with the commit of the release you want.
+name: audit
+
+on:
+  pull_request:
+    paths: [package.json, bun.lock, .github/workflows/audit.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Fails only on advisories this pull request adds to bun.lock. bun audit
+  # reads the lockfile, so no install is needed on either side.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.3"
+      - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: gate
+          command: bun audit

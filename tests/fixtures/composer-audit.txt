@@ -1,0 +1,11 @@
+Found 1 security vulnerability advisory affecting 1 package:
++-------------------+----------------------------------------------------------------------------------+
+| Package           | guzzlehttp/psr7                                                                  |
+| Severity          | medium                                                                           |
+| Advisory ID       | PKSA-6m4y-ry9q-hhvc                                                              |
+| CVE               | CVE-2023-29197                                                                   |
+| Title             | Improper header validation                                                       |
+| URL               | https://github.com/guzzle/psr7/security/advisories/GHSA-wxmh-65f7-jcvw           |
+| Affected versions | >=2.0.0,<2.4.5                                                                   |
+| Reported at       | 2023-04-17T16:00:00+00:00                                                        |
++-------------------+----------------------------------------------------------------------------------+

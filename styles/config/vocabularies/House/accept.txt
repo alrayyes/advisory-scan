@@ -23,6 +23,9 @@ shellcheck
 actionlint
 Dependabot
 Renovate
-composer
+Composer
 govulncheck
 jq
+worktree
+BusyBox
+coreutils
