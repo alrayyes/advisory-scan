@@ -65,3 +65,23 @@ attempts() { wc -l <"$counter" | tr -d ' '; }
   run --separate-stderr run_audit "$scratch/out"
   [ "$output" = "clean" ]
 }
+
+@test "the audit's output can't issue workflow commands" {
+  AUDIT_COMMAND="echo '::error::spoofed'; echo GHSA-vfj7-8cjw-p6xm; exit 1"
+  export AUDIT_COMMAND
+  run --separate-stderr run_audit "$scratch/out"
+  [ "$output" = "findings" ]
+  mapfile -t lines <<<"$stderr"
+  [[ "${lines[0]}" =~ ^::stop-commands::([0-9a-f]{12,})$ ]]
+  token=${BASH_REMATCH[1]}
+  [ "${lines[1]}" = "::error::spoofed" ]
+  [ "${lines[3]}" = "::${token}::" ]
+}
+
+@test "each attempt stops commands with a different token" {
+  AUDIT_COMMAND="echo run >>'$counter'; echo 'error: down'; exit 1"
+  export AUDIT_COMMAND
+  run --separate-stderr run_audit "$scratch/out"
+  [ "$(grep -c '^::stop-commands::' <<<"$stderr")" -eq 3 ]
+  [ "$(grep '^::stop-commands::' <<<"$stderr" | sort -u | wc -l)" -eq 3 ]
+}

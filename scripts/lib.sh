@@ -37,7 +37,9 @@ introduced_ids() {
 # attempt the same way, so retrying it only costs time. A timed-out attempt
 # counts as naming nothing, whatever it printed before it was stopped. The
 # command's output goes to stderr as it is, so it shows in the job log, and
-# the last attempt's output is left in the file.
+# the last attempt's output is left in the file. The runner reads the log for
+# workflow commands, so that output goes between ::stop-commands:: and a
+# fresh random token: an advisory title starting with :: stays text.
 run_audit() {
   local out=$1
   local attempts=${AUDIT_ATTEMPTS:-3}
@@ -48,7 +50,7 @@ run_audit() {
   for ((attempt = 1; attempt <= attempts; attempt++)); do
     status=0
     timeout "$seconds" bash -o pipefail -c "$AUDIT_COMMAND" >"$out" 2>&1 || status=$?
-    cat "$out" >&2
+    log_inert <"$out"
     # GNU timeout exits 124; BusyBox's exits 128 + the signal (SIGTERM).
     timed_out=false
     case "$status" in 124 | 143) timed_out=true ;; esac
@@ -72,6 +74,20 @@ run_audit() {
     fi
   done
   echo error
+}
+
+# log_inert < text: copies text to stderr with workflow commands switched
+# off for its duration. $RANDOM keeps this free of extra tools.
+log_inert() {
+  local token
+  token="$(printf '%04x%04x%04x%04x' "$RANDOM" "$RANDOM" "$RANDOM" "$RANDOM")"
+  {
+    echo "::stop-commands::$token"
+    # $(...) drops trailing newlines; printf puts exactly one back, so the
+    # resume marker is always on a line of its own.
+    printf '%s\n' "$(cat)"
+    echo "::$token::"
+  } >&2
 }
 
 # run_setup: runs $SETUP_COMMAND in bash, in the current directory, if
