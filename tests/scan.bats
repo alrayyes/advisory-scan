@@ -23,7 +23,8 @@ setup() {
   export GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=111 GITHUB_RUN_NUMBER=7 GITHUB_SHA=abc1234def
   export GITHUB_OUTPUT="$scratch/github_output"
   : >"$GITHUB_OUTPUT"
-  unset GITHUB_STEP_SUMMARY FORGEJO_ACTIONS GITEA_ACTIONS
+  # CI runs these tests inside a pull_request job, which scan mode refuses.
+  unset GITHUB_STEP_SUMMARY FORGEJO_ACTIONS GITEA_ACTIONS GITHUB_EVENT_NAME
 }
 
 teardown() {
