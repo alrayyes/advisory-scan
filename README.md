@@ -110,7 +110,10 @@ rather than guessing.
 **Scan mode** audits the working tree and finds the oldest open issue (not
 pull request) with the configured title. The first line of the body it
 writes is a comment recording the IDs, which is what the next run compares
-against:
+against. If more than one issue has the title, it keeps the oldest and
+closes the others with a comment pointing at it. It refuses to run on a
+`pull_request` or `pull_request_target` event, whose head isn't the default
+branch.
 
 | Audit                   | Open ticket   | Action                                     |
 | ----------------------- | ------------- | ------------------------------------------ |

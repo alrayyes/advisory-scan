@@ -243,3 +243,15 @@ issue() { jq ".issues[] | select(.number == $1)" "$state"; }
   [ -z "$(writes)" ]
   grep -qx "issue=40" "$GITHUB_OUTPUT"
 }
+
+@test "scan mode refuses to run on a pull request event" {
+  start_forge github
+  for event in pull_request pull_request_target; do
+    export GITHUB_EVENT_NAME=$event
+    run "$REPO_ROOT/scripts/advisory-scan.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"::error::"*"$event"* ]]
+    [[ "$output" != *"No vulnerabilities found"* ]]
+  done
+  [ ! -s "$requests" ]
+}

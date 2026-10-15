@@ -38,6 +38,11 @@ case "${ADVISORY_MODE:-}" in
     ;;
   scan)
     require timeout grep sed sort paste awk mktemp curl jq
+    # A pull request's head isn't the default branch, and pull_request_target
+    # would audit a fork's lockfile with a write token.
+    case "${GITHUB_EVENT_NAME:-}" in
+      pull_request*) die "Scan mode doesn't run on $GITHUB_EVENT_NAME: it keeps the default branch's ticket. Use gate mode on pull requests." ;;
+    esac
     [ -n "$API_TOKEN" ] || die "Scan mode needs a token that can write issues."
     # shellcheck source=scan.sh
     source "$here/scan.sh"
