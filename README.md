@@ -99,8 +99,11 @@ Forgejo `docker` runner needs these in the job's container:
 - GNU coreutils or BusyBox: `timeout`, `grep`, `sed`, `sort`, `paste`,
   `awk`, `mktemp`
 
-On `oven/bun:*-alpine` that's `apk add --no-cache bash git`. The action
-names anything missing before it runs the audit.
+On `oven/bun:*-alpine` that's `apk add --no-cache nodejs bash git`:
+the `nodejs` package because `actions/checkout` needs real Node.js, and that image's `node`
+is bun's fallback wrapper. The
+example in `examples/forgejo-bun.yml` hasn't run on a real Forgejo runner
+yet. The action names anything missing before it runs the audit.
 
 ## Development
 
