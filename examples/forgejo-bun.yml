@@ -3,16 +3,26 @@
 # fetches the action from github.com by its full URL.
 name: audit
 
+# Pull requests run the gate; the default branch runs the scan, daily for
+# advisories published against pins that haven't moved, on a lockfile push
+# so a merged fix closes the ticket straight away, and by hand.
 on:
   pull_request:
     paths: [package.json, bun.lock, .forgejo/workflows/audit.yml]
+  push:
+    branches: [main]
+    paths: [package.json, bun.lock, .forgejo/workflows/audit.yml]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: audit-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gate:
+    if: github.event_name == 'pull_request'
     runs-on: docker
     timeout-minutes: 10
     container:
@@ -27,4 +37,21 @@ jobs:
       - uses: https://github.com/alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
         with:
           mode: gate
+          command: bun audit
+
+  # Keeps one open "Dependency advisories" issue: created, updated when the
+  # IDs change, closed when the audit is clean.
+  scan:
+    if: github.event_name != 'pull_request'
+    runs-on: docker
+    timeout-minutes: 10
+    container:
+      image: oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373
+    steps:
+      # As above, plus curl and jq for the issues API.
+      - run: apk add --no-cache nodejs bash git curl jq
+      - uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://github.com/alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: scan
           command: bun audit

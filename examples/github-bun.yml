@@ -2,21 +2,31 @@
 # advisory-scan SHA with the commit of the release you want.
 name: audit
 
+# Pull requests run the gate; the default branch runs the scan, daily for
+# advisories published against pins that haven't moved, on a lockfile push
+# so a merged fix closes the ticket straight away, and by hand.
 on:
   pull_request:
     paths: [package.json, bun.lock, .github/workflows/audit.yml]
+  push:
+    branches: [main]
+    paths: [package.json, bun.lock, .github/workflows/audit.yml]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: audit-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Fails only on advisories this pull request adds to bun.lock. bun audit
   # reads the lockfile, so no install is needed on either side.
   gate:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -27,4 +37,23 @@ jobs:
       - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
         with:
           mode: gate
+          command: bun audit
+
+  # Keeps one open "Dependency advisories" issue: created, updated when the
+  # IDs change, closed when the audit is clean.
+  scan:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.3"
+      - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: scan
           command: bun audit

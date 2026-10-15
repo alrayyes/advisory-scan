@@ -6,6 +6,9 @@
 #   SETUP_COMMAND      optional, run before each audit in the same directory
 #   WORKING_DIRECTORY  relative to GITHUB_WORKSPACE
 #   BASE_SHA           gate mode: the commit to compare against
+#   ADVISORY_TOKEN     scan mode: a token that can write issues
+#   ISSUE_TITLE        scan mode: the ticket's title
+#   ISSUE_LABELS       scan mode: comma-separated labels for a new ticket
 #   AUDIT_TIMEOUT      seconds per audit attempt
 set -euo pipefail
 
@@ -26,7 +29,14 @@ case "${ADVISORY_MODE:-}" in
     source "$here/gate.sh"
     gate
     ;;
+  scan)
+    require timeout grep sed sort paste awk mktemp curl jq
+    [ -n "${ADVISORY_TOKEN:-}" ] || die "Scan mode needs a token that can write issues."
+    # shellcheck source=scan.sh
+    source "$here/scan.sh"
+    scan
+    ;;
   *)
-    die "Unknown mode '${ADVISORY_MODE:-}': use gate."
+    die "Unknown mode '${ADVISORY_MODE:-}': use gate or scan."
     ;;
 esac

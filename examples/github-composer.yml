@@ -2,22 +2,32 @@
 # advisory-scan SHA with the commit of the release you want.
 name: audit
 
+# Pull requests run the gate; the default branch runs the scan, daily for
+# advisories published against pins that haven't moved, on a lockfile push
+# so a merged fix closes the ticket straight away, and by hand.
 on:
   pull_request:
     paths: [composer.json, composer.lock, .github/workflows/audit.yml]
+  push:
+    branches: [main]
+    paths: [composer.json, composer.lock, .github/workflows/audit.yml]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: audit-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # --locked audits composer.lock without installing anything, so the base
   # needs no setup either. --abandoned=report keeps an abandoned package
   # (Composer fails on those by default since 2.7) from failing the gate.
   gate:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -29,4 +39,24 @@ jobs:
       - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
         with:
           mode: gate
+          command: composer audit --locked --abandoned=report
+
+  # Keeps one open "Dependency advisories" issue: created, updated when the
+  # IDs change, closed when the audit is clean.
+  scan:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          tools: composer:2.8.12
+      - uses: alrayyes/advisory-scan@0000000000000000000000000000000000000000 # vX.Y.Z
+        with:
+          mode: scan
           command: composer audit --locked --abandoned=report
