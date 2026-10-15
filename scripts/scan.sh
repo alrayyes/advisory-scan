@@ -146,24 +146,51 @@ api() {
   rm -f "$out"
 }
 
-# find_issue: the oldest open issue (not pull request) titled $ISSUE_TITLE,
-# as {"number": n, "body": "..."}, or nothing.
-find_issue() {
-  local repo="/repos/${GITHUB_REPOSITORY}/issues" page size query items found=()
+# find_issues: every open issue (not pull request) titled $ISSUE_TITLE,
+# oldest first, as a JSON array of {"number": n, "body": "..."}. Reads
+# pages until an empty one, since a server may cap the page size below
+# what was asked for (Forgejo's MAX_RESPONSE_ITEMS). Every failure returns
+# non-zero explicitly: errexit is off when the caller tests the result.
+find_issues() {
+  local repo="/repos/${GITHUB_REPOSITORY}/issues" page query items matches all="[]"
   if [ "$(detect_forge)" = forgejo ]; then
-    size=50
-    query="state=open&type=issues&limit=$size"
+    query="state=open&type=issues&limit=50"
   else
-    size=100
-    query="state=open&per_page=$size"
+    query="state=open&per_page=100"
   fi
   for ((page = 1; page <= 100; page++)); do
     items="$(api GET "$repo?$query&page=$page")" || return 1
-    found+=("$(jq -c --arg t "$ISSUE_TITLE" \
-      '.[] | select(.pull_request == null and .title == $t) | {number, body: (.body // "")}' <<<"$items")")
-    [ "$(jq length <<<"$items")" -lt "$size" ] && break
+    if ! jq -e 'type == "array"' <<<"$items" >/dev/null 2>&1; then
+      echo "::error::GET $repo page $page didn't return a JSON array, so the ticket can't be found safely." >&2
+      return 1
+    fi
+    [ "$(jq length <<<"$items")" -eq 0 ] && break
+    matches="$(jq -c --arg t "$ISSUE_TITLE" \
+      '[.[] | select(.pull_request == null and .title == $t) | {number, body: (.body // "")}]' <<<"$items")" || return 1
+    all="$(jq -c --argjson m "$matches" '. + $m' <<<"$all")" || return 1
   done
-  printf '%s\n' "${found[@]}" | sed '/^$/d' | jq -sc 'sort_by(.number) | first // empty'
+  jq -c 'unique_by(.number) | sort_by(.number)' <<<"$all"
+}
+
+# close_duplicates <issues JSON> : closes every issue but the oldest, with a
+# comment pointing at it, so there's one ticket to read.
+close_duplicates() {
+  local issues=$1 keep extra body
+  keep="$(jq -r '.[0].number' <<<"$issues")"
+  for extra in $(jq -r '.[1:][].number' <<<"$issues"); do
+    body="A duplicate of #$keep, which advisory-scan keeps up to date. Closing this one."
+    api POST "/repos/${GITHUB_REPOSITORY}/issues/$extra/comments" "$(jq -c -n --arg b "$body" '{body: $b}')" >/dev/null || return 1
+    api PATCH "/repos/${GITHUB_REPOSITORY}/issues/$extra" "$(close_payload)" >/dev/null || return 1
+  done
+}
+
+# close_payload: GitHub takes a reason; Forgejo's EditIssueOption has none.
+close_payload() {
+  if [ "$(detect_forge)" = forgejo ]; then
+    echo '{"state":"closed"}'
+  else
+    echo '{"state":"closed","state_reason":"completed"}'
+  fi
 }
 
 # add_labels <number>: $ISSUE_LABELS, comma-separated, by name. Both forges
@@ -177,7 +204,7 @@ add_labels() {
 
 # scan: the whole of scan mode.
 scan() {
-  local tmp status issue number recorded current action body closing
+  local tmp status issues issue number recorded current action body
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064 # expand now: $tmp is local
   trap "rm -rf '$tmp'" EXIT
@@ -198,7 +225,9 @@ scan() {
   current="$(join_ids <"$tmp/ids")"
   set_output advisories "$current"
 
-  issue="$(find_issue)" || exit 1
+  issues="$(find_issues)" || exit 1
+  close_duplicates "$issues" || exit 1
+  issue="$(jq -c '.[0] // empty' <<<"$issues")"
   number="$(jq -r '.number // empty' <<<"${issue:-null}")"
   recorded="$(jq -r '.body // ""' <<<"${issue:-null}" | recorded_ids)"
   action="$(decide "$status" "$number" "$recorded" "$current")"
@@ -218,12 +247,7 @@ scan() {
     close)
       body="The audit (\`${AUDIT_COMMAND}\`) is clean on ${GITHUB_SHA:0:7} as of $(date -u +%Y-%m-%d), in [this run]($(run_url)). Closing."
       api POST "/repos/${GITHUB_REPOSITORY}/issues/$number/comments" "$(jq -c -n --arg b "$body" '{body: $b}')" >/dev/null || exit 1
-      if [ "$(detect_forge)" = forgejo ]; then
-        closing='{"state":"closed"}'
-      else
-        closing='{"state":"closed","state_reason":"completed"}'
-      fi
-      api PATCH "/repos/${GITHUB_REPOSITORY}/issues/$number" "$closing" >/dev/null || exit 1
+      api PATCH "/repos/${GITHUB_REPOSITORY}/issues/$number" "$(close_payload)" >/dev/null || exit 1
       ;;
     leave) ;;
     *) die "Couldn't decide what to do with the ticket (status '$status')." ;;

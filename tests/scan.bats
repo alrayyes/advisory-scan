@@ -204,3 +204,42 @@ issue() { jq ".issues[] | select(.number == $1)" "$state"; }
   # The API calls still carried it.
   [ "$(jq -r 'select(.method == "POST") | .auth' "$requests" | sort -u)" = "Bearer s3cret" ]
 }
+
+@test "a newer duplicate ticket is closed, pointing at the oldest" {
+  seed_issue 4 "Dependency advisories" GHSA-aaaa-bbbb-cccc
+  seed_issue 9 "Dependency advisories" GHSA-aaaa-bbbb-cccc
+  start_forge github
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/findings"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(writes | jq -r '"\(.method) \(.path)"' | paste -sd ,)" = "POST /repos/o/r/issues/9/comments,PATCH /repos/o/r/issues/9" ]
+  [[ "$(issue 9 | jq -r '.comments[0]')" == *"#4"* ]]
+  [ "$(issue 9 | jq -r .state)" = closed ]
+  [ "$(issue 4 | jq -r .state)" = open ]
+  grep -qx "issue=4" "$GITHUB_OUTPUT"
+}
+
+@test "a listing that isn't a JSON array fails instead of opening a duplicate" {
+  seed_issue 4 "Dependency advisories" GHSA-aaaa-bbbb-cccc
+  jq '.respond = {"GET /repos/o/r/issues": {}}' "$state" >"$state.tmp" && mv "$state.tmp" "$state"
+  start_forge github
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/findings"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"* ]]
+  [ -z "$(writes)" ]
+}
+
+@test "Forgejo: a server page smaller than asked for doesn't end the search early" {
+  jq '.issues = [range(1; 31) | {number: ., title: "other", state: "open", body: "", labels: [], comments: []}]' \
+    "$state" >"$state.tmp" && mv "$state.tmp" "$state"
+  seed_issue 40 "Dependency advisories" GHSA-aaaa-bbbb-cccc
+  # The fake honours limit, so ask it to behave like MAX_RESPONSE_ITEMS=20.
+  jq '.max_page = 20' "$state" >"$state.tmp" && mv "$state.tmp" "$state"
+  start_forge forgejo
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/findings"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ -z "$(writes)" ]
+  grep -qx "issue=40" "$GITHUB_OUTPUT"
+}

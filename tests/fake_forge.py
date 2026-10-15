@@ -3,7 +3,9 @@
 
 Usage: fake_forge.py <state.json> <requests.jsonl> <port file>
 
-state.json holds {"issues": [...], "fail": {"METHOD /path": status}}. The
+state.json holds {"issues": [...], "fail": {"METHOD /path": status},
+"respond": {"METHOD /path": any JSON}}: "fail" answers with that status,
+"respond" answers 200 with that body instead of the real one. The
 server keeps issues in memory, writes the state back after each write so a
 test can read the end result, and appends every request it gets to
 requests.jsonl: method, path, query, Authorization header, parsed body.
@@ -22,6 +24,7 @@ with open(STATE_PATH) as f:
     STATE = json.load(f)
 STATE.setdefault("issues", [])
 STATE.setdefault("fail", {})
+STATE.setdefault("respond", {})
 
 
 def save():
@@ -53,6 +56,8 @@ class Handler(BaseHTTPRequestHandler):
         failure = STATE["fail"].get(f"{method} {path}")
         if failure:
             return self.reply(failure, {"message": "injected failure"})
+        if f"{method} {path}" in STATE["respond"]:
+            return self.reply(200, STATE["respond"][f"{method} {path}"])
 
         m = re.fullmatch(r"/repos/[^/]+/[^/]+/issues", path)
         if m and method == "GET":
@@ -86,6 +91,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def list_issues(self, query):
         size = int(query.get("per_page") or query.get("limit") or 30)
+        # A server-side cap, like Forgejo's MAX_RESPONSE_ITEMS.
+        size = min(size, STATE.get("max_page", size))
         page = int(query.get("page") or 1)
         state = query.get("state", "open")
         items = [i for i in STATE["issues"] if i["state"] == state]
