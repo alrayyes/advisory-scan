@@ -101,10 +101,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Ubuntu's packaged bats is 1.2.1; the tests need 1.5+ for
-      # --separate-stderr. Pinned to an exact release tag instead.
+      # --separate-stderr. Fetched by the v1.14.0 commit, not the tag, since
+      # a tag can move and this runs under sudo. kcov comes from apt.
       - name: Install bats-core and kcov
+        env:
+          BATS_COMMIT: eb7f42f8d608ac693d7a4b67474f6714ea68cfc5 # v1.14.0
         run: |
-          git clone --quiet --depth 1 --branch v1.14.0 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          git init --quiet /tmp/bats-core
+          git -C /tmp/bats-core fetch --quiet --depth 1 https://github.com/bats-core/bats-core.git "$BATS_COMMIT"
+          git -C /tmp/bats-core checkout --quiet FETCH_HEAD
           sudo /tmp/bats-core/install.sh /usr/local
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends kcov
