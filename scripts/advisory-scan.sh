@@ -14,8 +14,13 @@ set -euo pipefail
 
 # The token leaves the environment before anything else runs, so setup, the
 # audit and whatever they spawn (postinstall scripts, Composer plugins) can't
-# read it. Only api() in scan.sh uses this unexported copy.
-API_TOKEN="${ADVISORY_TOKEN:-}"
+# read it. Only api() in scan.sh uses this copy. A variable inherited from
+# the environment keeps its export flag when reassigned, and a job-level
+# env: reaches composite steps, so the copy is unset first and explicitly
+# un-exported, under a name a caller has no reason to set.
+unset __advisory_scan_token
+__advisory_scan_token="${ADVISORY_TOKEN:-}"
+export -n __advisory_scan_token
 unset ADVISORY_TOKEN
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +35,7 @@ cd "$workspace/$workdir" || die "working-directory '$workdir' doesn't exist in $
 
 case "${ADVISORY_MODE:-}" in
   gate)
-    API_TOKEN=""
+    __advisory_scan_token=""
     require git timeout grep sed sort paste awk mktemp
     # shellcheck source=gate.sh
     source "$here/gate.sh"
@@ -43,7 +48,7 @@ case "${ADVISORY_MODE:-}" in
     case "${GITHUB_EVENT_NAME:-}" in
       pull_request*) die "Scan mode doesn't run on $GITHUB_EVENT_NAME: it keeps the default branch's ticket. Use gate mode on pull requests." ;;
     esac
-    [ -n "$API_TOKEN" ] || die "Scan mode needs a token that can write issues."
+    [ -n "$__advisory_scan_token" ] || die "Scan mode needs a token that can write issues."
     # shellcheck source=scan.sh
     source "$here/scan.sh"
     scan

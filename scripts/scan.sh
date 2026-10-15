@@ -117,16 +117,17 @@ recorded_ids() {
 # api <method> <path> [json body]: one request to the forge's REST API,
 # printing the response body. Fails, naming the status, on anything but
 # 2xx. The token goes in a header file, not on curl's command line.
+# shellcheck disable=SC2154 # __advisory_scan_token is set, unexported, by advisory-scan.sh
 api() {
   local method=$1 path=$2 data=${3:-} headers out code
   headers="$(mktemp)"
   out="$(mktemp)"
   {
     if [ "$(detect_forge)" = forgejo ]; then
-      echo "Authorization: token $API_TOKEN"
+      echo "Authorization: token $__advisory_scan_token"
       echo "Accept: application/json"
     else
-      echo "Authorization: Bearer $API_TOKEN"
+      echo "Authorization: Bearer $__advisory_scan_token"
       echo "Accept: application/vnd.github+json"
       echo "X-GitHub-Api-Version: 2022-11-28"
     fi

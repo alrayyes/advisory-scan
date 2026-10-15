@@ -206,6 +206,22 @@ issue() { jq ".issues[] | select(.number == $1)" "$state"; }
   [ "$(jq -r 'select(.method == "POST") | .auth' "$requests" | sort -u)" = "Bearer s3cret" ]
 }
 
+@test "the token stays out of setup and the audit even when the caller exports the name it's kept under" {
+  start_forge github
+  # A job-level env: reaches composite steps, so the helper's variable may
+  # arrive already exported. Try the obvious names and the real one.
+  export API_TOKEN=caller __advisory_scan_token=caller
+  export SETUP_COMMAND="env >'$scratch/setup.env'"
+  export AUDIT_COMMAND="env >'$scratch/audit.env'; echo GHSA-aaaa-bbbb-cccc; exit 1"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c s3cret "$scratch/setup.env")" -eq 0 ]
+  [ "$(grep -c s3cret "$scratch/audit.env")" -eq 0 ]
+  [[ "$output" != *s3cret* ]]
+  [[ "$(issue 1 | jq -r .body)" != *s3cret* ]]
+  [ "$(jq -r 'select(.method == "POST") | .auth' "$requests" | sort -u)" = "Bearer s3cret" ]
+}
+
 @test "a newer duplicate ticket is closed, pointing at the oldest" {
   seed_issue 4 "Dependency advisories" GHSA-aaaa-bbbb-cccc
   seed_issue 9 "Dependency advisories" GHSA-aaaa-bbbb-cccc

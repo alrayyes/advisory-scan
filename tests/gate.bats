@@ -135,7 +135,7 @@ audits_run() { wc -l <"$calls" | tr -d ' '; }
 
 @test "gate mode never passes the token to setup or the audit" {
   repo "GHSA-aaaa-bbbb-cccc" "GHSA-aaaa-bbbb-cccc"
-  export ADVISORY_TOKEN=s3cret
+  export ADVISORY_TOKEN=s3cret API_TOKEN=caller __advisory_scan_token=caller
   export SETUP_COMMAND="env >>'$scratch/env'"
   export AUDIT_COMMAND="env >>'$scratch/env'; sh ./audit.sh"
   run "$REPO_ROOT/scripts/advisory-scan.sh"
