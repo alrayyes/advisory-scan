@@ -42,17 +42,18 @@ SH
   git -C "$origin" rev-parse HEAD
 }
 
-# repo <base lockfile> <head lockfile> [dir]: builds origin, clones the head
-# into $GITHUB_WORKSPACE with depth 1 so the base commit isn't local.
+# repo <base lockfile> <head lockfile> [dir] [checkout path]: builds origin,
+# clones the head into $GITHUB_WORKSPACE (or a path under it, like
+# actions/checkout's `path:`) with depth 1 so the base commit isn't local.
 repo() {
-  local dir=${3:-.}
+  local dir=${3:-.} into=${4:-}
   origin="$scratch/origin"
   git init -q -b main "$origin"
   BASE_SHA="$(commit "$dir" "$1" base)"
   commit "$dir" "$2" head >/dev/null
   export BASE_SHA
   GITHUB_WORKSPACE="$scratch/work"
-  git clone -q --depth 1 "file://$origin" "$GITHUB_WORKSPACE"
+  git clone -q --depth 1 "file://$origin" "$GITHUB_WORKSPACE${into:+/$into}"
   export GITHUB_WORKSPACE
 }
 
@@ -121,6 +122,15 @@ audits_run() { wc -l <"$calls" | tr -d ' '; }
   [ "$status" -eq 0 ]
   [ "$(audits_run)" -eq 2 ]
   grep -q "/sub/dir$" "$calls"
+}
+
+@test "a checkout under a path: in the workspace finds the same directory on the base" {
+  repo "GHSA-aaaa-bbbb-cccc" "GHSA-aaaa-bbbb-cccc" sub repo
+  export WORKING_DIRECTORY=repo/sub
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(audits_run)" -eq 2 ]
+  [ "$(grep -c '/sub$' "$calls")" -eq 2 ]
 }
 
 @test "a failing setup fails the step" {

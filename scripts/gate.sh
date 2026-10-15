@@ -3,10 +3,9 @@
 # Sourced by advisory-scan.sh, which has already sourced lib.sh and changed
 # into the head's working directory.
 
-# gate <working directory, relative to the repository root>
+# gate: runs in the head's working directory, anywhere inside the checkout.
 gate() {
-  local workdir=$1
-  local tmp head_ids base_ids introduced base_tree status
+  local tmp head_ids base_ids introduced base_tree status prefix
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064 # expand now: $tmp is local
   trap "gate_cleanup '$tmp'" EXIT
@@ -37,12 +36,15 @@ gate() {
   [ -n "${BASE_SHA:-}" ] ||
     die "The head has advisories and there's no base commit to compare against. Pass base-sha, or run gate mode on pull_request."
 
+  # The same directory on the base, relative to the repository root rather
+  # than the workspace: they differ when actions/checkout used `path:`.
+  prefix="$(git rev-parse --show-prefix)"
   base_tree="$tmp/base"
   checkout_base "$BASE_SHA" "$base_tree"
 
   echo "::group::Audit the base ($BASE_SHA)"
   (
-    cd "$base_tree/$workdir" || die "working-directory '$workdir' doesn't exist on the base commit."
+    cd "$base_tree/$prefix" || die "'${prefix:-.}' doesn't exist on the base commit."
     run_setup
     run_audit "$tmp/base.out" >"$tmp/base.status"
   )

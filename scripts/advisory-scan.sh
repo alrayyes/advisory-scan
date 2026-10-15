@@ -24,7 +24,7 @@ case "${ADVISORY_MODE:-}" in
     require git timeout grep sed sort paste
     # shellcheck source=gate.sh
     source "$here/gate.sh"
-    gate "$workdir"
+    gate
     ;;
   *)
     die "Unknown mode '${ADVISORY_MODE:-}': use gate."
