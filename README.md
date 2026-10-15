@@ -123,7 +123,10 @@ against:
 
 The body lists the sorted IDs, linked to [OSV](https://osv.dev) where it
 has a page, then the command, commit, date, a link to the run and the raw
-output in a code block (cut at 50,000 characters to fit). Scan mode passes
+output in a code block. The output is cut to whatever room GitHub's
+65,536-character body limit leaves after the rest, and the code fence is
+always longer than any run of tildes in it, so nothing in the output can
+end the block and render as Markdown. Scan mode passes
 when it has recorded findings: the ticket is the signal, and a red default
 branch every morning would only train people to ignore it.
 

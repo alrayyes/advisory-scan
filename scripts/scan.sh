@@ -3,9 +3,11 @@
 # what it finds. Sourced by advisory-scan.sh, which has already sourced
 # lib.sh and changed into the working directory.
 
-# The most an issue body holds is 65,536 characters on GitHub; the output
-# gets what's left after the list.
-OUTPUT_LIMIT=50000
+# The most an issue body holds is 65,536 characters on GitHub. The output
+# gets what's left after everything else, less room for the fence and the
+# note that it was cut.
+BODY_LIMIT=65536
+BODY_MARGIN=512
 
 # decide <status> <open issue number> <recorded IDs> <current IDs>: prints
 # create, update, close, leave or fail. IDs are space-separated, any order.
@@ -60,32 +62,45 @@ advisory_link() {
 # render_body <ids file> <output file>: the ticket's Markdown body. The
 # first line records the IDs for the next run to compare against.
 render_body() {
-  local ids_file=$1 out_file=$2 id count size
+  local ids_file=$1 out_file=$2 id count size head budget shown fence longest
   count="$(grep -c . "$ids_file" || true)"
   size="$(wc -c <"$out_file" | tr -d ' ')"
-  echo "<!-- advisory-scan ids: $(join_ids <"$ids_file") -->"
-  echo "The dependency audit on the default branch reports $count advisory ID(s)."
-  echo "[advisory-scan](https://github.com/alrayyes/advisory-scan) keeps this ticket:"
-  echo "it updates the list when the set changes and closes the ticket when the audit"
-  echo "is clean. Edits by hand are overwritten on the next change."
-  echo
-  echo "## Advisories"
-  echo
-  while IFS= read -r id; do
-    [ -n "$id" ] && echo "- $(advisory_link "$id")"
-  done <"$ids_file"
-  echo
-  echo "## Audit output"
-  echo
-  echo "\`${AUDIT_COMMAND}\` on ${GITHUB_SHA:0:7}, $(date -u +%Y-%m-%d), in [this run]($(run_url))."
-  echo
-  echo "~~~~~~text"
-  # $(...) drops trailing newlines, so the fence always closes on its own line.
-  printf '%s\n' "$(head -c "$OUTPUT_LIMIT" "$out_file")"
-  echo "~~~~~~"
-  if [ "$size" -gt "$OUTPUT_LIMIT" ]; then
+  head="$(
+    echo "<!-- advisory-scan ids: $(join_ids <"$ids_file") -->"
+    echo "The dependency audit on the default branch reports $count advisory ID(s)."
+    echo "[advisory-scan](https://github.com/alrayyes/advisory-scan) keeps this ticket:"
+    echo "it updates the list when the set changes and closes the ticket when the audit"
+    echo "is clean. Edits by hand are overwritten on the next change."
     echo
-    echo "Output cut at $OUTPUT_LIMIT characters; the run log has the rest."
+    echo "## Advisories"
+    echo
+    while IFS= read -r id; do
+      [ -n "$id" ] && echo "- $(advisory_link "$id")"
+    done <"$ids_file"
+    echo
+    echo "## Audit output"
+    echo
+    echo "\`${AUDIT_COMMAND}\` on ${GITHUB_SHA:0:7}, $(date -u +%Y-%m-%d), in [this run]($(run_url))."
+  )"
+  budget=$((BODY_LIMIT - ${#head} - BODY_MARGIN))
+  [ "$budget" -gt 0 ] || budget=0
+  shown="$(head -c "$budget" "$out_file")"
+
+  # CommonMark closes a tilde fence on a line of at least as many tildes,
+  # indented up to three spaces. Audit output is third-party text, so the
+  # fence is one longer than any such line in it, and never under six.
+  longest="$(grep -oE '^ {0,3}~+' <<<"$shown" | tr -d ' ' | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')"
+  [ "$longest" -ge 6 ] || longest=5
+  fence="$(printf '%*s' "$((longest + 1))" '' | tr ' ' '~')"
+
+  printf '%s\n\n' "$head"
+  echo "${fence}text"
+  # $(...) dropped trailing newlines, so the fence closes on its own line.
+  printf '%s\n' "$shown"
+  echo "$fence"
+  if [ "$size" -gt "$budget" ]; then
+    echo
+    echo "Output cut at $budget characters to fit the issue; the run log has the rest."
   fi
 }
 

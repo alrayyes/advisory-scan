@@ -43,6 +43,38 @@ teardown() { common_teardown; }
   [[ "$output" == *$'\n~~~~~~text\n```\nGHSA-aaaa-bbbb-cccc\n```\n~~~~~~'* ]]
 }
 
+@test "a run of tildes in the output can't close the fence, whatever its length" {
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/ids"
+  for run in 3 6 10; do
+    {
+      echo GHSA-aaaa-bbbb-cccc
+      printf '%*s\n' "$run" '' | tr ' ' '~'
+      echo '   ~~~~~~~~~~~~ indented'
+      echo '@alrayyes see #1 <img src=x>'
+    } >"$scratch/out"
+    run render_body "$scratch/ids" "$scratch/out"
+    # The longest run is 12 (the indented line); the fence is 13.
+    fence='~~~~~~~~~~~~~'
+    [[ "$output" == *$'\n'"${fence}text"$'\n'* ]]
+    [[ "$output" == *"@alrayyes see #1 <img src=x>"$'\n'"${fence}" ]]
+  done
+}
+
+@test "a short fence stays six tildes" {
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/ids"
+  printf 'plain output\n' >"$scratch/out"
+  run render_body "$scratch/ids" "$scratch/out"
+  [[ "$output" == *$'\n~~~~~~text\nplain output\n~~~~~~' ]]
+}
+
+@test "a long ID list leaves less room for the output, and the body still fits" {
+  for i in $(seq 1000 1499); do printf 'GHSA-%04d-bbbb-cccc\n' "$i"; done >"$scratch/ids"
+  head -c 200000 /dev/zero | tr '\0' 'x' >"$scratch/out"
+  run render_body "$scratch/ids" "$scratch/out"
+  [ "${#output}" -lt 65536 ]
+  [[ "$output" == *"Output cut"* ]]
+}
+
 @test "very long output is cut to fit an issue body" {
   printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/ids"
   head -c 200000 /dev/zero | tr '\0' 'x' >"$scratch/out"
