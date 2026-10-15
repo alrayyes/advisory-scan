@@ -96,7 +96,8 @@ Forgejo `docker` runner needs these in the job's container:
 
 - bash, which every step of the action runs in
 - git, to fetch and check out the base commit
-- GNU coreutils or BusyBox: `timeout`, `grep`, `sed`, `sort`, `paste`
+- GNU coreutils or BusyBox: `timeout`, `grep`, `sed`, `sort`, `paste`,
+  `awk`, `mktemp`
 
 On `oven/bun:*-alpine` that's `apk add --no-cache bash git`. The action
 names anything missing before it runs the audit.

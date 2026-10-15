@@ -21,7 +21,7 @@ cd "$workspace/$workdir" || die "working-directory '$workdir' doesn't exist in $
 
 case "${ADVISORY_MODE:-}" in
   gate)
-    require git timeout grep sed sort paste
+    require git timeout grep sed sort paste awk mktemp
     # shellcheck source=gate.sh
     source "$here/gate.sh"
     gate
