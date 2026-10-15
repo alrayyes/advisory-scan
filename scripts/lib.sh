@@ -19,9 +19,11 @@ extract_ids() {
 }
 
 # introduced_ids <head ids file> <base ids file>: the IDs in the first file
-# that aren't in the second.
+# that aren't in the second. awk, not `grep -vxFf`: BusyBox grep matches
+# everything against an empty pattern file, which would hide every ID
+# against a clean base.
 introduced_ids() {
-  grep -vxF -f "$2" "$1" || true
+  awk 'FILENAME == ARGV[1] { seen[$0] = 1; next } !seen[$0]' "$2" "$1"
 }
 
 # run_audit <output file>: runs $AUDIT_COMMAND in bash, in the current
@@ -41,23 +43,26 @@ run_audit() {
   local attempts=${AUDIT_ATTEMPTS:-3}
   local seconds=${AUDIT_TIMEOUT:-300}
   local delay=${RETRY_DELAY:-10}
-  local attempt status
+  local attempt status timed_out
 
   for ((attempt = 1; attempt <= attempts; attempt++)); do
     status=0
     timeout "$seconds" bash -o pipefail -c "$AUDIT_COMMAND" >"$out" 2>&1 || status=$?
     cat "$out" >&2
+    # GNU timeout exits 124; BusyBox's exits 128 + the signal (SIGTERM).
+    timed_out=false
+    case "$status" in 124 | 143) timed_out=true ;; esac
 
     if [ "$status" -eq 0 ]; then
       echo clean
       return 0
     fi
-    if [ "$status" -ne 124 ] && [ -n "$(extract_ids <"$out")" ]; then
+    if [ "$timed_out" = false ] && [ -n "$(extract_ids <"$out")" ]; then
       echo findings
       return 0
     fi
 
-    if [ "$status" -eq 124 ]; then
+    if [ "$timed_out" = true ]; then
       echo "Audit attempt $attempt/$attempts timed out after ${seconds}s." >&2
     else
       echo "Audit attempt $attempt/$attempts exited $status without naming an advisory." >&2
