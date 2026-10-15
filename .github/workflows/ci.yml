@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Works out which filtered jobs a pull request touches (rules/ci.md). A job
+  # skipped by `if:` reports success, so the `ci-ok` aggregator below can be
+  # the one required check. A push to main runs everything.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      prose: ${{ steps.groups.outputs.prose }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: groups
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "prose=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          prose=false
+          while IFS= read -r path; do
+            case "$path" in
+              *.md | styles/* | .vale.ini | .ltex.json | scripts/lint-vale.sh | scripts/lint-ltex.sh | .github/workflows/ci.yml) prose=true ;;
+            esac
+          done < <(git diff --name-only "$BASE...HEAD")
+          echo "prose=$prose" >> "$GITHUB_OUTPUT"
+
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.3"
+      - run: bun install --frozen-lockfile
+      - run: bunx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
+  # Cheap, so never filtered: there's always a status on every pull request.
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      LEFTHOOK: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.3"
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - run: bun run lint:md
+      - run: ./scripts/lint-shell.sh
+      - name: actionlint
+        uses: docker://rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 # 1.7.7
+        with:
+          args: -color
+
+  # Grammar, spelling, the phonetic article: mechanics have a right answer,
+  # so this fails the build.
+  mechanics:
+    needs: changes
+    if: needs.changes.outputs.prose == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/alrayyes/ltex-cli-plus:18.7.0@sha256:00c30809802234d6c43b0ce0b295075bd0aff9c576aaba57433bc8baf314398c
+      options: --entrypoint ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./scripts/lint-ltex.sh
+
+  # Style is advice: only Vale.Terms (error severity) fails the job.
+  style:
+    needs: changes
+    if: needs.changes.outputs.prose == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./scripts/lint-vale.sh
+
+  # The single required check. Passes when every job above passed or was
+  # skipped by its filter, and fails on any failure or cancellation.
+  ci-ok:
+    if: always()
+    needs: [changes, commitlint, lint, mechanics, style]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          allowed-skips: commitlint, mechanics, style
+          jobs: ${{ toJSON(needs) }}

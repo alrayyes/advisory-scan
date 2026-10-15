@@ -1,0 +1,39 @@
+# commitlint only ever reads commit objects inside a pull request - it
+# never sees the PR title, and this repo allows squash merges, where
+# GitHub defaults the squash commit message to the PR title. A PR with
+# three perfectly conventional commits and a title reading "fixed stuff"
+# would squash straight past commitlint and land exactly that on main.
+#
+# pull_request_target, not pull_request: this needs base-repo permissions
+# to work on a PR from a fork too, and it only ever reads the PR's title -
+# no checkout of the head branch's code happens here.
+name: pr-title-lint
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert

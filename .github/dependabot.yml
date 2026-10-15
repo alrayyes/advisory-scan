@@ -1,0 +1,48 @@
+# Nothing here ships JavaScript. package.json only pins the lint tooling
+# (commitlint, markdownlint, prettier), so its updates are chore:, and the
+# action's own pins in workflows are ci:.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      # Grouping (even a group of one) keeps a major bump on Dependabot's
+      # lowercase group-title template, which commitlint's subject-case rule
+      # accepts (rules/release-bots.md).
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]
+
+  # Paused: Dependabot's bundled bun can't parse a bun.lock written by bun
+  # 1.4+ (dependabot/dependabot-core#16026, fix open as #16071). Re-enable
+  # once that lands. Until then the advisory scan workflow is what notices a
+  # vulnerable tooling pin.
+  # - package-ecosystem: bun
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #     day: monday
+  #     time: "06:00"
+  #     timezone: Europe/Amsterdam
+  #   commit-message:
+  #     prefix: chore
+  #     include: scope
+  #   groups:
+  #     tooling:
+  #       patterns: ["*"]
+  #       update-types: [minor, patch]
+  #     tooling-major:
+  #       patterns: ["*"]
+  #       update-types: [major]
