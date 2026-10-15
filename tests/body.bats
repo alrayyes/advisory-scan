@@ -75,6 +75,14 @@ teardown() { common_teardown; }
   [[ "$output" == *"Output cut"* ]]
 }
 
+@test "one huge tilde line still leaves the body, fences included, under the limit" {
+  printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/ids"
+  { echo GHSA-aaaa-bbbb-cccc; head -c 70000 /dev/zero | tr '\0' '~'; echo; } >"$scratch/out"
+  run render_body "$scratch/ids" "$scratch/out"
+  [ "${#output}" -lt 65536 ]
+  [[ "$output" == *"Output cut"* ]]
+}
+
 @test "very long output is cut to fit an issue body" {
   printf 'GHSA-aaaa-bbbb-cccc\n' >"$scratch/ids"
   head -c 200000 /dev/zero | tr '\0' 'x' >"$scratch/out"

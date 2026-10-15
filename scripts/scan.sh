@@ -59,10 +59,21 @@ advisory_link() {
   esac
 }
 
+# fence_for <text>: a tilde fence the text can't close. CommonMark closes
+# one on a line of at least as many tildes, indented up to three spaces, and
+# audit output is third-party text, so this is one longer than any such
+# line, and never under six.
+fence_for() {
+  local longest
+  longest="$(grep -oE '^ {0,3}~+' <<<"$1" | tr -d ' ' | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')"
+  [ "$longest" -ge 6 ] || longest=5
+  printf '%*s' "$((longest + 1))" '' | tr ' ' '~'
+}
+
 # render_body <ids file> <output file>: the ticket's Markdown body. The
 # first line records the IDs for the next run to compare against.
 render_body() {
-  local ids_file=$1 out_file=$2 id count size head budget shown fence longest
+  local ids_file=$1 out_file=$2 id count size head budget shown fence
   count="$(grep -c . "$ids_file" || true)"
   size="$(wc -c <"$out_file" | tr -d ' ')"
   head="$(
@@ -86,12 +97,16 @@ render_body() {
   [ "$budget" -gt 0 ] || budget=0
   shown="$(head -c "$budget" "$out_file")"
 
-  # CommonMark closes a tilde fence on a line of at least as many tildes,
-  # indented up to three spaces. Audit output is third-party text, so the
-  # fence is one longer than any such line in it, and never under six.
-  longest="$(grep -oE '^ {0,3}~+' <<<"$shown" | tr -d ' ' | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')"
-  [ "$longest" -ge 6 ] || longest=5
-  fence="$(printf '%*s' "$((longest + 1))" '' | tr ' ' '~')"
+  fence="$(fence_for "$shown")"
+  # The two fences count against the budget too. Cutting the output can only
+  # shorten its longest tilde run, so the recomputed fence is no longer than
+  # the first, and output plus fences now fit.
+  if [ $((${#shown} + 2 * ${#fence})) -gt "$budget" ]; then
+    budget=$((budget - 2 * ${#fence}))
+    [ "$budget" -gt 0 ] || budget=0
+    shown="$(head -c "$budget" "$out_file")"
+    fence="$(fence_for "$shown")"
+  fi
 
   printf '%s\n\n' "$head"
   echo "${fence}text"
