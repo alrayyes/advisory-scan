@@ -20,7 +20,10 @@
         "PYSEC",
         "RUSTSEC",
         "GHSA",
-        "toolchain"
+        "toolchain",
+        "worktree",
+        "coreutils",
+        "BusyBox"
       ]
     },
     "disabledRules": {

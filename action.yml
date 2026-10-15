@@ -1,0 +1,67 @@
+name: "Advisory scan"
+description: >-
+  Runs your ecosystem's dependency audit and fails a pull request only on
+  the advisories it introduces over its base.
+author: "alrayyes"
+branding:
+  icon: "shield"
+  color: "gray-dark"
+
+inputs:
+  mode:
+    description: >-
+      gate: on a pull request, audit the head and the base and fail only on
+      advisory IDs the head has that the base doesn't.
+    required: true
+  command:
+    description: >-
+      The audit to run, in bash, such as "bun audit" or "composer audit".
+      It must exit non-zero when it finds an advisory. Advisory IDs (GHSA,
+      CVE, PKSA, GO, PYSEC, RUSTSEC) are read from its output.
+    required: true
+  setup:
+    description: >-
+      Optional command run before the audit in the same directory, and
+      again on the base checkout in gate mode, such as "composer install
+      --no-scripts".
+    required: false
+    default: ""
+  working-directory:
+    description: "Directory to run in, relative to the workspace."
+    required: false
+    default: "."
+  base-sha:
+    description: >-
+      Gate mode: the commit to compare against. Defaults to the pull
+      request's base, or the previous commit on a push.
+    required: false
+    default: ""
+  timeout-seconds:
+    description: >-
+      Time limit for each of the three audit attempts. An attempt that runs
+      out counts as a tool error, not a finding.
+    required: false
+    default: "300"
+
+outputs:
+  advisories:
+    description: "Every advisory ID the audit named, space-separated."
+    value: ${{ steps.run.outputs.advisories }}
+  introduced:
+    description: "Gate mode: the IDs the head introduces, space-separated."
+    value: ${{ steps.run.outputs.introduced }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Audit
+      id: run
+      shell: bash
+      env:
+        ADVISORY_MODE: ${{ inputs.mode }}
+        AUDIT_COMMAND: ${{ inputs.command }}
+        SETUP_COMMAND: ${{ inputs.setup }}
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        AUDIT_TIMEOUT: ${{ inputs.timeout-seconds }}
+        BASE_SHA: ${{ inputs.base-sha || github.event.pull_request.base.sha || github.event.before }}
+      run: '"${{ github.action_path }}/scripts/advisory-scan.sh"'

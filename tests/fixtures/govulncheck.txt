@@ -1,0 +1,10 @@
+=== Symbol Results ===
+
+Vulnerability #1: GO-2024-2687
+    HTTP/2 CONTINUATION flood in net/http
+  More info: https://pkg.go.dev/vuln/GO-2024-2687
+  Module: golang.org/x/net
+    Found in: golang.org/x/net@v0.21.0
+    Fixed in: golang.org/x/net@v0.23.0
+
+Your code is affected by 1 vulnerability from 1 module.
