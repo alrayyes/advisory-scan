@@ -7,9 +7,9 @@
 
 ## 2. Scan mode
 
-- [ ] 2.1 Decide create, update, close, leave or fail
-- [ ] 2.2 Find, create, update and close the ticket on GitHub and Forgejo
-- [ ] 2.3 Scan workflow examples and README
+- [x] 2.1 Decide create, update, close, leave or fail
+- [x] 2.2 Find, create, update and close the ticket on GitHub and Forgejo
+- [x] 2.3 Scan workflow examples and README
 
 ## 3. Pilot
 

@@ -1,7 +1,8 @@
 name: "Advisory scan"
 description: >-
   Runs your ecosystem's dependency audit and fails a pull request only on
-  the advisories it introduces over its base.
+  the advisories it introduces over its base, or scans the default branch
+  and keeps one ticket listing what it finds.
 author: "alrayyes"
 branding:
   icon: "shield"
@@ -11,7 +12,9 @@ inputs:
   mode:
     description: >-
       gate: on a pull request, audit the head and the base and fail only on
-      advisory IDs the head has that the base doesn't.
+      advisory IDs the head has that the base doesn't. scan: on the default
+      branch, audit and create, update or close the one open ticket titled
+      by the title input.
     required: true
   command:
     description: >-
@@ -36,6 +39,24 @@ inputs:
       request's base, or the previous commit on a push.
     required: false
     default: ""
+  token:
+    description: >-
+      Scan mode: a token that can write issues, and nothing more. On
+      GitHub, the job's own token with `issues: write`; on Forgejo, a token
+      scoped to write:issue if the automatic one can't. setup and command
+      never see it.
+    required: false
+    default: ${{ github.token }}
+  title:
+    description: "Scan mode: the ticket's title, and how the next run finds it."
+    required: false
+    default: "Dependency advisories"
+  labels:
+    description: >-
+      Scan mode: comma-separated labels for a new ticket, such as
+      "dependencies,security". On Forgejo they must already exist.
+    required: false
+    default: ""
   timeout-seconds:
     description: >-
       Time limit for each of the three audit attempts. An attempt that runs
@@ -50,6 +71,9 @@ outputs:
   introduced:
     description: "Gate mode: the IDs the head introduces, space-separated."
     value: ${{ steps.run.outputs.introduced }}
+  issue:
+    description: "Scan mode: the ticket's number, if there is or was one."
+    value: ${{ steps.run.outputs.issue }}
 
 runs:
   using: "composite"
@@ -63,5 +87,8 @@ runs:
         SETUP_COMMAND: ${{ inputs.setup }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
         AUDIT_TIMEOUT: ${{ inputs.timeout-seconds }}
+        ADVISORY_TOKEN: ${{ inputs.token }}
+        ISSUE_TITLE: ${{ inputs.title }}
+        ISSUE_LABELS: ${{ inputs.labels }}
         BASE_SHA: ${{ inputs.base-sha || github.event.pull_request.base.sha || github.event.before }}
       run: '"${{ github.action_path }}/scripts/advisory-scan.sh"'
