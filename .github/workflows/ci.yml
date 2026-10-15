@@ -124,6 +124,24 @@ jobs:
             jq -r '"| **Total** | **\(.percent_covered)%** |"' "$report"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # The same suite on Alpine, where grep, sed, awk and timeout are
+  # BusyBox's: the shape of a Forgejo `docker` runner's container. Caught
+  # two real differences (empty grep pattern files, timeout's exit code).
+  test-busybox:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: alpine:3.22.6@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+    steps:
+      # bats from Alpine's own repository (1.11+), git for checkout and the
+      # gate tests, python3 for scan mode's fake API.
+      - run: apk add --no-cache bash git curl jq python3 bats
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: bats tests/
+
   # Dogfood: this repo's own tooling lockfile, audited by the action at the
   # pull request's head, in gate mode.
   audit:
@@ -169,11 +187,12 @@ jobs:
   # skipped by its filter, and fails on any failure or cancellation.
   ci-ok:
     if: always()
-    needs: [changes, commitlint, lint, test, audit, mechanics, style]
+    needs:
+      [changes, commitlint, lint, test, test-busybox, audit, mechanics, style]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          allowed-skips: commitlint, test, audit, mechanics, style
+          allowed-skips: commitlint, test, test-busybox, audit, mechanics, style
           jobs: ${{ toJSON(needs) }}
