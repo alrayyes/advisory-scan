@@ -190,3 +190,17 @@ issue() { jq ".issues[] | select(.number == $1)" "$state"; }
   [[ "$output" == *"::error::"*"token"* ]]
   [[ "$output" != *"No vulnerabilities found"* ]]
 }
+
+@test "the token never reaches setup, the audit, or the ticket" {
+  start_forge github
+  export SETUP_COMMAND="env >'$scratch/setup.env'"
+  export AUDIT_COMMAND="env >'$scratch/audit.env'; echo \"token=\${ADVISORY_TOKEN:-}\"; echo GHSA-aaaa-bbbb-cccc; exit 1"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c s3cret "$scratch/setup.env")" -eq 0 ]
+  [ "$(grep -c s3cret "$scratch/audit.env")" -eq 0 ]
+  [[ "$output" != *s3cret* ]]
+  [[ "$(issue 1 | jq -r .body)" != *s3cret* ]]
+  # The API calls still carried it.
+  [ "$(jq -r 'select(.method == "POST") | .auth' "$requests" | sort -u)" = "Bearer s3cret" ]
+}

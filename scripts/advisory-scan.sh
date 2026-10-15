@@ -12,6 +12,12 @@
 #   AUDIT_TIMEOUT      seconds per audit attempt
 set -euo pipefail
 
+# The token leaves the environment before anything else runs, so setup, the
+# audit and whatever they spawn (postinstall scripts, Composer plugins) can't
+# read it. Only api() in scan.sh uses this unexported copy.
+API_TOKEN="${ADVISORY_TOKEN:-}"
+unset ADVISORY_TOKEN
+
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$here/lib.sh"
@@ -24,6 +30,7 @@ cd "$workspace/$workdir" || die "working-directory '$workdir' doesn't exist in $
 
 case "${ADVISORY_MODE:-}" in
   gate)
+    API_TOKEN=""
     require git timeout grep sed sort paste awk mktemp
     # shellcheck source=gate.sh
     source "$here/gate.sh"
@@ -31,7 +38,7 @@ case "${ADVISORY_MODE:-}" in
     ;;
   scan)
     require timeout grep sed sort paste awk mktemp curl jq
-    [ -n "${ADVISORY_TOKEN:-}" ] || die "Scan mode needs a token that can write issues."
+    [ -n "$API_TOKEN" ] || die "Scan mode needs a token that can write issues."
     # shellcheck source=scan.sh
     source "$here/scan.sh"
     scan

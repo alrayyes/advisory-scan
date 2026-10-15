@@ -108,10 +108,10 @@ api() {
   out="$(mktemp)"
   {
     if [ "$(detect_forge)" = forgejo ]; then
-      echo "Authorization: token $ADVISORY_TOKEN"
+      echo "Authorization: token $API_TOKEN"
       echo "Accept: application/json"
     else
-      echo "Authorization: Bearer $ADVISORY_TOKEN"
+      echo "Authorization: Bearer $API_TOKEN"
       echo "Accept: application/vnd.github+json"
       echo "X-GitHub-Api-Version: 2022-11-28"
     fi

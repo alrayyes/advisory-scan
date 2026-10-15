@@ -160,8 +160,19 @@ action names anything missing before it runs the audit. CI runs the whole
 test suite on Alpine as well as Ubuntu, so BusyBox's versions of the
 coreutils are covered.
 
-On Forgejo, `github.token` needs to be allowed to write issues in the repo.
-If it isn't, pass a token from a secret as `token`.
+### The token
+
+Scan mode needs a token that can write issues, and nothing more: on GitHub
+the job's own token with `permissions: issues: write`; on Forgejo the
+automatic token if the instance lets it write issues (untested), otherwise
+a personal access token scoped to `write:issue` only, from a secret. Gate
+mode never uses it.
+
+The action takes the token out of the environment before anything else
+runs, so `setup`, `command` and whatever they start (install scripts,
+Composer plugins, build backends) can't read it or print it into the
+ticket. It reaches `curl` through a temporary header file, not the command
+line.
 
 ## Development
 

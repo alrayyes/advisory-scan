@@ -41,8 +41,10 @@ inputs:
     default: ""
   token:
     description: >-
-      Scan mode: a token that can create, edit and comment on issues. The
-      job's own token works with `issues: write` on GitHub.
+      Scan mode: a token that can write issues, and nothing more. On
+      GitHub, the job's own token with `issues: write`; on Forgejo, a token
+      scoped to write:issue if the automatic one can't. setup and command
+      never see it.
     required: false
     default: ${{ github.token }}
   title:
