@@ -86,7 +86,8 @@ and the scan drops its IDs from the ticket
 ### Running the gate only when dependencies change
 
 Filter the gate to the files its audits read, and the workflow file itself,
-so editing the workflow runs it. Use a `changes` job rather than a
+so editing the workflow runs it. The examples leave `paths:` off the
+`pull_request` trigger for this reason. Use a `changes` job rather than a
 workflow-level `paths:` filter if the gate is a required check: a workflow
 skipped by `paths:` never reports, and a required check that never reports
 blocks the pull request. Capture the file list in a variable before reading
