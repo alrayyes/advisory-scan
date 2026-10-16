@@ -147,6 +147,22 @@ nothing about what fails.
 There's no `ignore` input, on purpose. A pipeline that needs an ignore list
 to go green is gating on the wrong thing.
 
+### The audit's output in the log
+
+The action copies each audit's raw output into the job log, between
+`::stop-commands::` markers, so a line in it can't act as a workflow
+command. Problem matchers aren't workflow commands, though.
+`actions/setup-go` registers one (owner `go`) that turns any
+`file.go:line:col: message` line into an annotation, and govulncheck's call
+traces have exactly that shape. A passing gate then showed failure
+annotations ([#9](https://github.com/alrayyes/advisory-scan/issues/9)).
+The action removes that matcher before it logs any output, with
+`::remove-matcher owner=go::`. It stays removed for the rest of the job,
+because a step can't tell whether it was registered and so can't put it
+back only where it was. Run the audit in its own job, as `examples/` does,
+or after any Go step whose annotations you want. In a job without
+`setup-go`, removing it does nothing.
+
 ## Runner requirements
 
 GitHub's `ubuntu-24.04` and `ubuntu-22.04` images have everything. A
