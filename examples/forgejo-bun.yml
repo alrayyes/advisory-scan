@@ -7,8 +7,11 @@ name: audit
 # advisories published against pins that haven't moved, on a lockfile push
 # so a merged fix closes the ticket straight away, and by hand.
 on:
+  # No `paths:` here: a workflow skipped by a path filter never reports, so
+  # a required gate would block every pull request that touches no
+  # dependency. To filter, use the `changes` job in the README's "Running the
+  # gate only when dependencies change".
   pull_request:
-    paths: [package.json, bun.lock, .forgejo/workflows/audit.yml]
   push:
     branches: [main]
     paths: [package.json, bun.lock, .forgejo/workflows/audit.yml]
