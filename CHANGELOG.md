@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/alrayyes/advisory-scan/compare/v0.2.1...v0.3.0) (2026-10-16)
+
+
+### Features
+
+* run each audit command on its own ([#10](https://github.com/alrayyes/advisory-scan/issues/10)) ([e3720cb](https://github.com/alrayyes/advisory-scan/commit/e3720cb5cc3a0a6e2507757706db0ca4b61bdeaa))
+
 ## [0.2.1](https://github.com/alrayyes/advisory-scan/compare/v0.2.0...v0.2.1) (2026-10-16)
 
 
