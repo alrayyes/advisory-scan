@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/alrayyes/advisory-scan/compare/v0.2.0...v0.2.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* keep setup-go's problem matcher off the audit's output ([#11](https://github.com/alrayyes/advisory-scan/issues/11)) ([6ddffd7](https://github.com/alrayyes/advisory-scan/commit/6ddffd7c7f0110318c8b915f9c14690940c21707)), closes [#9](https://github.com/alrayyes/advisory-scan/issues/9)
+
 ## [0.2.0](https://github.com/alrayyes/advisory-scan/compare/v0.1.0...v0.2.0) (2026-10-16)
 
 
