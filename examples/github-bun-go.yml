@@ -10,16 +10,11 @@ name: audit
 # dependency push and by hand. govulncheck reports only advisories the code
 # can reach, so Go source counts as a dependency change here.
 on:
+  # No `paths:` here: a workflow skipped by a path filter never reports, so
+  # a required gate would block every pull request that touches no
+  # dependency. To filter, use the `changes` job in the README's "Running the
+  # gate only when dependencies change".
   pull_request:
-    paths:
-      [
-        package.json,
-        bun.lock,
-        go.mod,
-        go.sum,
-        "**/*.go",
-        .github/workflows/audit.yml,
-      ]
   push:
     branches: [main]
     paths:
