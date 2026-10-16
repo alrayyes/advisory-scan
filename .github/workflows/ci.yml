@@ -164,6 +164,59 @@ jobs:
           mode: gate
           command: bun audit
 
+  # setup-go's problem matcher against the action's log, on a real runner
+  # (#9): a control line printed before the action must become an
+  # annotation, proving the matcher is live, and the trace line the action
+  # logs must not. matcher-annotations checks.
+  matcher:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25.14"
+          cache: false
+      - name: Control line for the matcher
+        run: 'echo "matcher/control.go:1:1: problem-matcher control line, expected"'
+      - uses: ./
+        with:
+          mode: gate
+          command: 'echo "internal/forgejo/forgejo.go:93:21: forgejo.Client.SetArchived calls fmt.Sprintf"'
+
+  # The runner uploads a job's annotations when the job ends, so the
+  # matcher job's own steps can't see them; this one reads them after.
+  matcher-annotations:
+    needs: matcher
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: read
+      actions: read
+    steps:
+      - name: Only the control line was annotated
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          job="$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs" --jq '.jobs[] | select(.name == "matcher") | .id')"
+          # Retried in case the upload lags the job's end by a few seconds.
+          for _ in 1 2 3 4 5; do
+            annotations="$(gh api "repos/$REPO/check-runs/$job/annotations")"
+            control="$(jq '[.[] | select(.message | contains("problem-matcher control line"))] | length' <<<"$annotations")"
+            [ "$control" -ge 1 ] && break
+            sleep 10
+          done
+          trace="$(jq '[.[] | select(.message | contains("SetArchived"))] | length' <<<"$annotations")"
+          echo "control annotations: $control, trace annotations: $trace"
+          [ "$control" -ge 1 ] || { echo "::error::The matcher never fired, so this check proves nothing."; exit 1; }
+          [ "$trace" -eq 0 ] || { echo "::error::The action's output was annotated by setup-go's matcher."; exit 1; }
+
   # Grammar, spelling, the phonetic article: mechanics have a right answer,
   # so this fails the build.
   mechanics:
@@ -193,11 +246,22 @@ jobs:
   ci-ok:
     if: always()
     needs:
-      [changes, commitlint, lint, test, test-busybox, audit, mechanics, style]
+      [
+        changes,
+        commitlint,
+        lint,
+        test,
+        test-busybox,
+        matcher,
+        matcher-annotations,
+        audit,
+        mechanics,
+        style,
+      ]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          allowed-skips: commitlint, test, test-busybox, audit, mechanics, style
+          allowed-skips: commitlint, test, test-busybox, matcher, matcher-annotations, audit, mechanics, style
           jobs: ${{ toJSON(needs) }}

@@ -78,10 +78,20 @@ run_audit() {
 
 # log_inert < text: copies text to stderr with workflow commands switched
 # off for its duration. $RANDOM keeps this free of extra tools.
+#
+# Problem matchers aren't workflow commands, so ::stop-commands:: doesn't
+# stop them. actions/setup-go registers one (owner "go") that annotates any
+# file.go:line:col: line, which is the shape of govulncheck's call traces,
+# so a passing gate showed failure annotations (#9). It's removed first,
+# outside the stop-commands block where the command still works, and stays
+# removed for the rest of the job: the runner has no way to ask whether it
+# was there, so it can't be put back only where it was. A no-op in a job
+# without setup-go.
 log_inert() {
   local token
   token="$(printf '%04x%04x%04x%04x' "$RANDOM" "$RANDOM" "$RANDOM" "$RANDOM")"
   {
+    echo "::remove-matcher owner=go::"
     echo "::stop-commands::$token"
     # $(...) drops trailing newlines; printf puts exactly one back, so the
     # resume marker is always on a line of its own.
