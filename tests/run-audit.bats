@@ -72,10 +72,11 @@ attempts() { wc -l <"$counter" | tr -d ' '; }
   run --separate-stderr run_audit "$scratch/out"
   [ "$output" = "findings" ]
   mapfile -t lines <<<"$stderr"
-  [[ "${lines[0]}" =~ ^::stop-commands::([0-9a-f]{12,})$ ]]
+  # lines[0] removes setup-go's problem matcher (matcher.bats).
+  [[ "${lines[1]}" =~ ^::stop-commands::([0-9a-f]{12,})$ ]]
   token=${BASH_REMATCH[1]}
-  [ "${lines[1]}" = "::error::spoofed" ]
-  [ "${lines[3]}" = "::${token}::" ]
+  [ "${lines[2]}" = "::error::spoofed" ]
+  [ "${lines[4]}" = "::${token}::" ]
 }
 
 @test "each attempt stops commands with a different token" {
