@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/alrayyes/advisory-scan/compare/v0.3.0...v0.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **ci:** fail the changes job when git diff fails ([#17](https://github.com/alrayyes/advisory-scan/issues/17)) ([c9eca61](https://github.com/alrayyes/advisory-scan/commit/c9eca617c2b273bba28539e3ade706e02a96e7d2))
+
 ## [0.3.0](https://github.com/alrayyes/advisory-scan/compare/v0.2.1...v0.3.0) (2026-10-16)
 
 
