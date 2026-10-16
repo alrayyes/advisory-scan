@@ -83,6 +83,57 @@ like a finding, so the gate passes without auditing the second ecosystem
 and the scan drops its IDs from the ticket
 ([#8](https://github.com/alrayyes/advisory-scan/issues/8)).
 
+### Running the gate only when dependencies change
+
+Filter the gate to the files its audits read, and the workflow file itself,
+so editing the workflow runs it. Use a `changes` job rather than a
+workflow-level `paths:` filter if the gate is a required check: a workflow
+skipped by `paths:` never reports, and a required check that never reports
+blocks the pull request. Capture the file list in a variable before reading
+it. With `git diff` inside a pipe or a process substitution, a failure
+doesn't stop `bash -e`, and an empty list reads as "nothing changed", so the
+gate is skipped and passes:
+
+```yaml
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      deps: ${{ steps.filter.outputs.deps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "deps=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A failed git diff stops the step here, instead of passing an
+          # empty list on.
+          files="$(git diff --name-only "$BASE...HEAD")"
+          deps=false
+          while IFS= read -r path; do
+            case "$path" in
+              package.json | bun.lock | go.mod | go.sum | *.go | .github/workflows/audit.yml) deps=true ;;
+            esac
+          done <<<"$files"
+          echo "deps=$deps" >> "$GITHUB_OUTPUT"
+
+  gate:
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    # ... as above
+```
+
+A job skipped by its `if:` reports as passed, so `gate` can stay a required
+check.
+
 ### Inputs
 
 | Input               | Default                              | What it does                                                                                                                              |
