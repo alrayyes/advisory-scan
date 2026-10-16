@@ -57,15 +57,39 @@ jobs:
           labels: dependencies
 ```
 
-`examples/` has complete workflows for GitHub with bun, GitHub with
-Composer and Forgejo with bun.
+`examples/` has complete workflows for GitHub with bun, GitHub with bun and
+Go in one job, GitHub with Composer, and Forgejo with bun.
+
+### Several ecosystems in one job
+
+Give each audit its own line in `commands`, not one compound `command`:
+
+```yaml
+- uses: alrayyes/advisory-scan@<sha> # vX.Y.Z
+  with:
+    mode: gate
+    commands: |
+      bun audit
+      go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+```
+
+Each line runs on its own, with its own three attempts, timeout and
+verdict, and the IDs of the lines that found something are combined. If
+any line errors without naming an advisory, the step fails as an audit
+error: the gate fails, and the scan leaves the ticket alone. A compound
+`bun audit; govulncheck ./...` can't do that. Once the first tool prints an
+ID, as `bun audit` does for braces, a registry outage in the second looks
+like a finding, so the gate passes without auditing the second ecosystem
+and the scan drops its IDs from the ticket
+([#8](https://github.com/alrayyes/advisory-scan/issues/8)).
 
 ### Inputs
 
 | Input               | Default                              | What it does                                                                                                                              |
 | ------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `mode`              | required                             | `gate` or `scan`.                                                                                                                         |
-| `command`           | required                             | The audit, run in bash. It must exit non-zero when it finds an advisory.                                                                  |
+| `command`           | `command` or `commands` is required  | The audit, run in bash. It must exit non-zero when it finds an advisory. Runs as one command even across several lines.                   |
+| `commands`          | none                                 | More audits, one per line, each classified on its own (see "Several ecosystems in one job").                                              |
 | `setup`             | none                                 | Run before the audit in the same directory, and again on the base checkout in gate mode. For an audit that needs an installation first.   |
 | `working-directory` | `.`                                  | Where to run, relative to the workspace.                                                                                                  |
 | `base-sha`          | the pull request's base, or `before` | Gate mode: the commit to compare against.                                                                                                 |
@@ -90,7 +114,8 @@ the ticket's number).
 
 ## How it works
 
-The action runs `command` and reads advisory IDs out of whatever it prints:
+The action runs `command` and each line of `commands`, and reads advisory
+IDs out of whatever each prints:
 `GHSA-`, `CVE-`, `PKSA-`, `GO-`, `PYSEC-` and `RUSTSEC-`. No tool's JSON
 format is parsed, so any audit that prints its IDs works.
 

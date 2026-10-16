@@ -3,6 +3,7 @@
 #
 #   ADVISORY_MODE      gate | scan
 #   AUDIT_COMMAND      the audit, run in bash; non-zero exit on findings
+#   AUDIT_COMMANDS     more audits, one per line, each classified on its own
 #   SETUP_COMMAND      optional, run before each audit in the same directory
 #   WORKING_DIRECTORY  relative to GITHUB_WORKSPACE
 #   BASE_SHA           gate mode: the commit to compare against
@@ -27,7 +28,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$here/lib.sh"
 
-[ -n "${AUDIT_COMMAND:-}" ] || die "The command input is empty: pass the audit to run, such as 'bun audit'."
+load_audits
+[ "${#AUDITS[@]}" -gt 0 ] || die "The command input is empty: pass the audit to run, such as 'bun audit', or one per line in commands."
 
 workspace="${GITHUB_WORKSPACE:-$PWD}"
 workdir="${WORKING_DIRECTORY:-.}"

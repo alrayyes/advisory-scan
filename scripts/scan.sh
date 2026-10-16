@@ -91,7 +91,7 @@ render_body() {
     echo
     echo "## Audit output"
     echo
-    echo "\`${AUDIT_COMMAND}\` on ${GITHUB_SHA:0:7}, $(date -u +%Y-%m-%d), in [this run]($(run_url))."
+    echo "$(audit_label) on ${GITHUB_SHA:0:7}, $(date -u +%Y-%m-%d), in [this run]($(run_url))."
   )"
   budget=$((BODY_LIMIT - ${#head} - BODY_MARGIN))
   [ "$budget" -gt 0 ] || budget=0
@@ -227,18 +227,14 @@ scan() {
 
   echo "::group::Audit"
   run_setup
-  status="$(run_audit "$tmp/out")"
+  status="$(run_audits "$tmp/run")"
   echo "::endgroup::"
 
   [ "$status" = error ] &&
-    die "The audit failed three times with no advisory ID in its output, so it's the tool or the registry, not a finding. The ticket is left as it is."
+    die "An audit failed three times with no advisory ID in its output, so it's the tool or the registry, not a finding. The ticket is left as it is."
 
-  if [ "$status" = findings ]; then
-    extract_ids <"$tmp/out" >"$tmp/ids"
-  else
-    : >"$tmp/ids"
-  fi
-  current="$(join_ids <"$tmp/ids")"
+  # run_audits wrote $tmp/run.ids and $tmp/run.out.
+  current="$(join_ids <"$tmp/run.ids")"
   set_output advisories "$current"
 
   issues="$(find_issues)" || exit 1
@@ -251,17 +247,17 @@ scan() {
 
   case "$action" in
     create)
-      body="$(render_body "$tmp/ids" "$tmp/out")"
+      body="$(render_body "$tmp/run.ids" "$tmp/run.out")"
       number="$(api POST "/repos/${GITHUB_REPOSITORY}/issues" \
         "$(jq -c -n --arg t "$ISSUE_TITLE" --arg b "$body" '{title: $t, body: $b}')" | jq -r .number)" || exit 1
       add_labels "$number" || exit 1
       ;;
     update)
-      body="$(render_body "$tmp/ids" "$tmp/out")"
+      body="$(render_body "$tmp/run.ids" "$tmp/run.out")"
       api PATCH "/repos/${GITHUB_REPOSITORY}/issues/$number" "$(jq -c -n --arg b "$body" '{body: $b}')" >/dev/null || exit 1
       ;;
     close)
-      body="The audit (\`${AUDIT_COMMAND}\`) is clean on ${GITHUB_SHA:0:7} as of $(date -u +%Y-%m-%d), in [this run]($(run_url)). Closing."
+      body="The audit ($(audit_label)) is clean on ${GITHUB_SHA:0:7} as of $(date -u +%Y-%m-%d), in [this run]($(run_url)). Closing."
       api POST "/repos/${GITHUB_REPOSITORY}/issues/$number/comments" "$(jq -c -n --arg b "$body" '{body: $b}')" >/dev/null || exit 1
       api PATCH "/repos/${GITHUB_REPOSITORY}/issues/$number" "$(close_payload)" >/dev/null || exit 1
       ;;

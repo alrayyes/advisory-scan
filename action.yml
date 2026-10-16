@@ -20,8 +20,20 @@ inputs:
     description: >-
       The audit to run, in bash, such as "bun audit" or "composer audit".
       It must exit non-zero when it finds an advisory. Advisory IDs (GHSA,
-      CVE, PKSA, GO, PYSEC, RUSTSEC) are read from its output.
-    required: true
+      CVE, PKSA, GO, PYSEC, RUSTSEC) are read from its output. It runs as
+      one command even if it spans several lines.
+    required: false
+    default: ""
+  commands:
+    description: >-
+      More audits, one per line, for a job that covers several ecosystems,
+      such as "bun audit" and a govulncheck line. Each runs on its own with
+      its own retries, timeout and verdict, and the IDs of the ones that
+      found something are combined. If any of them errors without naming an
+      advisory, the whole step is an error. Runs after command, if both are
+      set; one of the two is required.
+    required: false
+    default: ""
   setup:
     description: >-
       Optional command run before the audit in the same directory, and
@@ -84,6 +96,7 @@ runs:
       env:
         ADVISORY_MODE: ${{ inputs.mode }}
         AUDIT_COMMAND: ${{ inputs.command }}
+        AUDIT_COMMANDS: ${{ inputs.commands }}
         SETUP_COMMAND: ${{ inputs.setup }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
         AUDIT_TIMEOUT: ${{ inputs.timeout-seconds }}

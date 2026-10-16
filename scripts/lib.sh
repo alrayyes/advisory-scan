@@ -90,6 +90,66 @@ log_inert() {
   } >&2
 }
 
+# load_audits: fills AUDITS with the commands to run. $AUDIT_COMMAND is one
+# command, whatever it contains, so a multi-line script still runs whole;
+# each non-blank line of $AUDIT_COMMANDS is one more.
+load_audits() {
+  local line
+  AUDITS=()
+  [ -n "${AUDIT_COMMAND:-}" ] && AUDITS+=("$AUDIT_COMMAND")
+  while IFS= read -r line; do
+    [ -n "${line//[[:space:]]/}" ] && AUDITS+=("$line")
+  done <<<"${AUDIT_COMMANDS:-}"
+  return 0
+}
+
+# run_audits <prefix>: runs every command load_audits finds through
+# run_audit, each with its own attempts, timeout and verdict, and prints one
+# word for the lot:
+#
+#   error     any command errored, whatever the others found (#8): a second
+#             tool's outage must not hide behind the first tool's IDs
+#   findings  none errored and at least one found something
+#   clean     every command was clean
+#
+# Writes <prefix>.out, each command's output under a "$ command" line, and
+# <prefix>.ids, the IDs from the commands that found something. IDs a clean
+# command printed (govulncheck's unreached code) don't count.
+run_audits() {
+  local prefix=$1 i status overall=clean
+  load_audits
+  : >"$prefix.out"
+  : >"$prefix.ids.all"
+  for i in "${!AUDITS[@]}"; do
+    status="$(AUDIT_COMMAND="${AUDITS[$i]}" run_audit "$prefix.$i.out")"
+    printf '$ %s\n' "${AUDITS[$i]}" >>"$prefix.out"
+    cat "$prefix.$i.out" >>"$prefix.out"
+    case "$status" in
+      error)
+        echo "Audit command $((i + 1)) of ${#AUDITS[@]} errored: ${AUDITS[$i]}" >&2
+        overall=error
+        ;;
+      findings)
+        extract_ids <"$prefix.$i.out" >>"$prefix.ids.all"
+        [ "$overall" = error ] || overall=findings
+        ;;
+    esac
+  done
+  sort -u "$prefix.ids.all" | sed '/^$/d' >"$prefix.ids"
+  rm -f "$prefix.ids.all"
+  echo "$overall"
+}
+
+# audit_label: the commands, as inline code, for the ticket.
+audit_label() {
+  local cmd out=""
+  load_audits
+  for cmd in "${AUDITS[@]}"; do
+    out+="${out:+, }\`${cmd}\`"
+  done
+  printf '%s' "$out"
+}
+
 # run_setup: runs $SETUP_COMMAND in bash, in the current directory, if
 # there is one. Not retried: an install that flakes is the caller's to
 # make robust, and a broken one should fail loudly.

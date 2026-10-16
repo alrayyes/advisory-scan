@@ -183,3 +183,91 @@ audits_run() { wc -l <"$calls" | tr -d ' '; }
   [ "$status" -ne 0 ]
   [[ "$output" == *"::error::"*"command"* ]]
 }
+
+# Two ecosystems, one command each (#8). tool.sh <name> reads the
+# "lockfile" advisories-<name>, with audit.sh's rules.
+# repo2 <base a> <base b> <head a> <head b>
+commit2() {
+  cat >"$origin/tool.sh" <<'SH'
+echo "$PWD $1" >>"$CALLS"
+case "$(cat "advisories-$1")" in
+  "") echo "No vulnerabilities found"; exit 0 ;;
+  error) echo "error: OSV down"; exit 1 ;;
+  *) cat "advisories-$1"; exit 1 ;;
+esac
+SH
+  printf '%s' "$1" >"$origin/advisories-a"
+  printf '%s' "$2" >"$origin/advisories-b"
+  git -C "$origin" add -A
+  git -C "$origin" commit -q --allow-empty -m "$3"
+  git -C "$origin" rev-parse HEAD
+}
+
+repo2() {
+  origin="$scratch/origin"
+  git init -q -b main "$origin"
+  BASE_SHA="$(commit2 "$1" "$2" base)"
+  commit2 "$3" "$4" head >/dev/null
+  export BASE_SHA
+  GITHUB_WORKSPACE="$scratch/work"
+  git clone -q --depth 1 "file://$origin" "$GITHUB_WORKSPACE"
+  export GITHUB_WORKSPACE
+  export AUDIT_COMMAND=""
+  AUDIT_COMMANDS="$(printf 'sh ./tool.sh a\nsh ./tool.sh b')"
+  export AUDIT_COMMANDS
+}
+
+GHSA_A=GHSA-aaaa-bbbb-cccc
+GO_B=GO-2024-0001
+
+@test "two tools: a finding and an error fail the gate as an error" {
+  repo2 "$GHSA_A" "" "$GHSA_A" error
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"*"no advisory ID"* ]]
+  [ "$(grep -c ' b$' "$calls")" -eq 3 ]
+}
+
+@test "two tools: an error and a finding fail the gate as an error" {
+  repo2 "" "$GO_B" error "$GO_B"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"*"no advisory ID"* ]]
+}
+
+@test "two tools: a pre-existing finding and a clean audit pass" {
+  repo2 "$GHSA_A" "" "$GHSA_A" ""
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  grep -qx "advisories=$GHSA_A" "$GITHUB_OUTPUT"
+}
+
+@test "two tools: both clean pass without auditing the base" {
+  repo2 "$GHSA_A" "" "" ""
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(audits_run)" -eq 2 ]
+}
+
+@test "one tool listed in commands, erroring, fails the gate" {
+  repo2 "" "" error ""
+  AUDIT_COMMANDS="sh ./tool.sh a"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"*"no advisory ID"* ]]
+}
+
+@test "two tools: both finding, one new in the second, fails naming only it" {
+  repo2 "$GHSA_A" "" "$GHSA_A" "$GO_B"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 1 ]
+  grep -qx "introduced=$GO_B" "$GITHUB_OUTPUT"
+  grep -qx "advisories=$GHSA_A $GO_B" "$GITHUB_OUTPUT"
+}
+
+@test "two tools: a base where the second tool errors fails the gate" {
+  repo2 "$GHSA_A" error "$GHSA_A" "$GO_B"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"*"base"* ]]
+}

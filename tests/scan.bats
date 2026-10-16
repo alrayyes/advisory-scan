@@ -272,3 +272,85 @@ issue() { jq ".issues[] | select(.number == $1)" "$state"; }
   done
   [ ! -s "$requests" ]
 }
+
+# Two ecosystems, one command each (#8). tool.sh <file> prints the file
+# with the same rules as the single audit.
+two_tools() {
+  local name
+  for name in a b; do : >"$scratch/findings-$name"; done
+  cat >"$scratch/tool.sh" <<'SH'
+f=$(cat "$1")
+case "$f" in
+  '') echo 'No vulnerabilities found' ;;
+  error) echo 'error: OSV down'; exit 1 ;;
+  *) echo "$f"; exit 1 ;;
+esac
+SH
+  export AUDIT_COMMAND=""
+  AUDIT_COMMANDS="$(printf "sh '%s' '%s'\n" "$scratch/tool.sh" "$scratch/findings-a" "$scratch/tool.sh" "$scratch/findings-b")"
+  export AUDIT_COMMANDS
+}
+
+@test "two tools: a finding and an error fail, and the ticket isn't touched" {
+  seed_issue 4 "Dependency advisories" GHSA-aaaa-bbbb-cccc GO-2024-0001
+  start_forge github
+  two_tools
+  echo GHSA-aaaa-bbbb-cccc >"$scratch/findings-a"
+  echo error >"$scratch/findings-b"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"::error::"* ]]
+  [ ! -s "$requests" ]
+}
+
+@test "two tools: an error and a finding fail, and the ticket isn't touched" {
+  seed_issue 4 "Dependency advisories" GHSA-aaaa-bbbb-cccc GO-2024-0001
+  start_forge github
+  two_tools
+  echo error >"$scratch/findings-a"
+  echo GO-2024-0001 >"$scratch/findings-b"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [ ! -s "$requests" ]
+}
+
+@test "two tools: a finding and a clean audit list exactly that finding" {
+  start_forge github
+  two_tools
+  echo GO-2024-0001 >"$scratch/findings-b"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [[ "$(issue 1 | jq -r .body)" == *"<!-- advisory-scan ids: GO-2024-0001 -->"* ]]
+}
+
+@test "two tools: both clean close the ticket" {
+  seed_issue 4 "Dependency advisories" GO-2024-0001
+  start_forge github
+  two_tools
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(issue 4 | jq -r .state)" = closed ]
+}
+
+@test "one tool in commands, erroring, fails and touches nothing" {
+  seed_issue 4 "Dependency advisories" GO-2024-0001
+  start_forge github
+  two_tools
+  echo error >"$scratch/findings-a"
+  AUDIT_COMMANDS="sh '$scratch/tool.sh' '$scratch/findings-a'"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -ne 0 ]
+  [ ! -s "$requests" ]
+}
+
+@test "two tools: both finding list the union, and name both commands" {
+  start_forge github
+  two_tools
+  echo GHSA-aaaa-bbbb-cccc >"$scratch/findings-a"
+  echo GO-2024-0001 >"$scratch/findings-b"
+  run "$REPO_ROOT/scripts/advisory-scan.sh"
+  [ "$status" -eq 0 ]
+  body="$(issue 1 | jq -r .body)"
+  [[ "$body" == *"<!-- advisory-scan ids: GHSA-aaaa-bbbb-cccc GO-2024-0001 -->"* ]]
+  [[ "$body" == *"findings-a"*"findings-b"* ]]
+}
