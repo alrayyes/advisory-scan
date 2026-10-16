@@ -12,7 +12,7 @@ gate() {
 
   echo "::group::Audit the head"
   run_setup
-  status="$(run_audit "$tmp/head.out")"
+  status="$(run_audits "$tmp/head")"
   echo "::endgroup::"
 
   case "$status" in
@@ -23,12 +23,11 @@ gate() {
       return 0
       ;;
     error)
-      die "The head audit failed three times with no advisory ID in its output, so it's the tool or the registry, not a finding. See the log above."
+      die "An audit of the head failed three times with no advisory ID in its output, so it's the tool or the registry, not a finding. See the log above."
       ;;
   esac
 
   head_ids="$tmp/head.ids"
-  extract_ids <"$tmp/head.out" >"$head_ids"
   set_output advisories "$(join_ids <"$head_ids")"
 
   # A new branch's first push has an all-zero github.event.before.
@@ -46,15 +45,14 @@ gate() {
   (
     cd "$base_tree/$prefix" || die "'${prefix:-.}' doesn't exist on the base commit."
     run_setup
-    run_audit "$tmp/base.out" >"$tmp/base.status"
+    run_audits "$tmp/base" >"$tmp/base.status"
   )
   echo "::endgroup::"
 
   base_ids="$tmp/base.ids"
   case "$(cat "$tmp/base.status")" in
-    clean) : >"$base_ids" ;;
-    findings) extract_ids <"$tmp/base.out" >"$base_ids" ;;
-    *) die "The base audit failed three times with no advisory ID in its output, so there's nothing to compare the head against. See the log above." ;;
+    clean | findings) ;;
+    *) die "An audit of the base failed three times with no advisory ID in its output, so there's nothing to compare the head against. See the log above." ;;
   esac
 
   introduced="$(introduced_ids "$head_ids" "$base_ids")"
